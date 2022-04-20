@@ -70,19 +70,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	//DirectX初期化処理　ここから
 
-	#ifdef _DEBUG
-		//デバックレイヤーをオンに
-		ID3D12Debug* debugController;
+#ifdef _DEBUG
+	//デバックレイヤーをオンに
+	ID3D12Debug* debugController;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
 		debugController->EnableDebugLayer();
-		}
+	}
 
-	#endif
+#endif
 	HRESULT result;
 	ID3D12Device* device = nullptr;
 	IDXGIFactory7* dxgiFactory = nullptr;
 	IDXGISwapChain4* swapChain = nullptr;
-	ID3D12CommandAllocator* cmdAllocator = nullptr;
+	ID3D12CommandAllocator* commandAllocator = nullptr;
 	ID3D12GraphicsCommandList* commandList = nullptr;
 	ID3D12CommandQueue* commandQueue = nullptr;
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
@@ -144,14 +144,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//コマンドアロケータを生成
 	result = device->CreateCommandAllocator(
 		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		IID_PPV_ARGS(&cmdAllocator));
+		IID_PPV_ARGS(&commandAllocator));
 	assert(SUCCEEDED(result));
 
 	//コマンドリストを生成
 	result = device->CreateCommandList(0,
-		D3D12_COMMAND_LIST_TYPE_DIRECT,
-		cmdAllocator, nullptr,
-		IID_PPV_ARGS(&commandList));
+									   D3D12_COMMAND_LIST_TYPE_DIRECT,
+									   commandAllocator, nullptr,
+									   IID_PPV_ARGS(&commandList));
 	assert(SUCCEEDED(result));
 
 	//コマンドキューの設定
@@ -205,13 +205,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		//レンダーターゲットビューの生成
 		device->CreateRenderTargetView(backBuffers[i], &rtvDesc, rtvHandle);
 
-		//フェンスの生成
-		ID3D12Fence* fence = nullptr;
-		UINT64 fenceVal = 0;
-
-		result = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
-
 	}
+
+	//フェンスの生成
+	ID3D12Fence* fence = nullptr;
+	UINT64 fenceVal = 0;
+
+	result = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+
 	//DirectX初期化処理　ここまで
 
 	//ゲームループ
@@ -227,6 +228,60 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			break;
 		}
 		//DirectX毎フレーム処理　ここから
+		//バックバッファの番号を取得(2つなので0番か1番)
+		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
+
+		//1.リソースバリアで書き込み可能に変更
+		D3D12_RESOURCE_BARRIER barrierDesc{};
+		barrierDesc.Transition.pResource = backBuffers[bbIndex];					//バックバッファを指定
+		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;			//表示状態から
+		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;		//	描画状態へ
+		commandList->ResourceBarrier(1, &barrierDesc);
+
+		//2.描画先の変更
+		// レンダーターゲットビューのハンドルを取得
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
+		rtvHandle.ptr += bbIndex * device->GetDescriptorHandleIncrementSize(rtvHeapDesc.Type);
+		commandList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
+
+		//3.画面クリア            R     G     B   A
+		FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f }; //青っぽい
+		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
+
+		//4.描画コマンドここから
+		//4.描画コマンドここまで
+
+		//5.リソースバリアを戻す
+		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		commandList->ResourceBarrier(1, &barrierDesc);
+
+		//命令のクローズ
+		result = commandList->Close();
+		assert(SUCCEEDED(result));
+		//コマンドリストの実行
+		ID3D12CommandList* commandLists[] = { commandList };
+		commandQueue->ExecuteCommandLists(1, commandLists);
+
+		//画面に表示するバッファをフリップする
+		result = swapChain->Present(1, 0);
+		assert(SUCCEEDED(result));
+
+		//コマンドの実行完了を待つ
+		commandQueue->Signal(fence, ++fenceVal);
+		if (fence->GetCompletedValue() != fenceVal) {
+			HANDLE event = CreateEvent(nullptr, false, false, nullptr);
+			fence->SetEventOnCompletion(fenceVal, event);
+			WaitForSingleObject(event, INFINITE);
+			CloseHandle(event);
+		}
+
+		//キューをクリア
+		result = commandAllocator->Reset();
+		assert(SUCCEEDED(result));
+		//再びコマンドリストを貯める準備
+		result = commandList->Reset(commandAllocator, nullptr);
+		assert(SUCCEEDED(result));
 
 		//DirectX毎フレーム処理　ここまで
 	}
