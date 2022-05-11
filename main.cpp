@@ -1,5 +1,6 @@
+#define DIRECTINPUT_VERSION 0x0800 //DirectInputのバージョン指定
+#include<dinput.h>
 #include<d3dcompiler.h>
-#pragma comment(lib, "d3dcompiler.lib")
 #include <windows.h>
 #include<d3d12.h>
 #include<dxgi1_6.h>
@@ -9,9 +10,11 @@
 #include<DirectXMath.h>
 using namespace DirectX;
 
+#pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
-
+#pragma comment(lib,"dinput8.lib")
+#pragma comment(lib,"dxguid.lib")
 //ウィンドウプロシージャ
 LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	//メッセージに応じてゲーム特有の処理を行う
@@ -91,6 +94,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ID3D12GraphicsCommandList* commandList = nullptr;
 	ID3D12CommandQueue* commandQueue = nullptr;
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
+
+	FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f }; //青っぽい
 
 	//DXGIファクトリーの生成
 	result = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
@@ -217,6 +222,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	UINT64 fenceVal = 0;
 
 	result = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+
+	//DirectInputの初期化
+	IDirectInput8* directInput = nullptr;
+	result = DirectInput8Create(w.hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&directInput, nullptr);
+	assert(SUCCEEDED(result));
+	//キーボードデバイスの生成
+	IDirectInputDevice8* keyboard = nullptr;
+	result = directInput->CreateDevice(GUID_SysKeyboard, &keyboard, NULL);
+	assert(SUCCEEDED(result));
+	//入力データ形式のセット
+	result = keyboard->SetDataFormat(&c_dfDIKeyboard); //標準形式
+	assert(SUCCEEDED(result));
+	//排他制御レベルのセット
+	result = keyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
+	assert(SUCCEEDED(result));
 	//DirectX初期化処理　ここまで
 
 	//頂点データ
@@ -348,13 +368,42 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//サンプルマスクの設定
 	pipelineDesc.SampleMask = D3D12_DEFAULT_SAMPLE_MASK; //標準設定
 
+	//レンダーターゲットのブレンド設定
+	D3D12_RENDER_TARGET_BLEND_DESC& blenddesc = pipelineDesc.BlendState.RenderTarget[0];
+	blenddesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL; //RGBA全てのチャンネルを描画
+
+	blenddesc.BlendEnable = true;						//ブレンドを有効にする
+	blenddesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;		//加算
+	blenddesc.SrcBlendAlpha = D3D12_BLEND_ONE;			//ソースの値を100%使う
+	blenddesc.DestBlendAlpha = D3D12_BLEND_ZERO;		//デストの値を0%使う
+
+	////加算合成
+	//blenddesc.BlendOp = D3D12_BLEND_OP_ADD;				//加算
+	//blenddesc.SrcBlend = D3D12_BLEND_ONE;				//ソースの値を100%使う
+	//blenddesc.DestBlend = D3D12_BLEND_ONE;				//デストの値を100%使う
+
+	////減算合成
+	//blenddesc.BlendOp = D3D12_BLEND_OP_REV_SUBTRACT;	//デストからソースを減算
+	//blenddesc.SrcBlend = D3D12_BLEND_ONE;				//ソースの値を100%使う
+	//blenddesc.DestBlend = D3D12_BLEND_ONE;				//デストの値を100%使う
+
+	////色反転
+	//blenddesc.BlendOp = D3D12_BLEND_OP_ADD;				//加算
+	//blenddesc.SrcBlend = D3D12_BLEND_INV_DEST_COLOR;	//1.0f-デストカラーの値
+	//blenddesc.DestBlend = D3D12_BLEND_ZERO;				//使わない
+
+	//半透明合成
+	blenddesc.BlendOp = D3D12_BLEND_OP_ADD;				//加算
+	blenddesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;			//ソースのアルファ値
+	blenddesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;	//1.0f-ソースのアルファ値
+	
 	//ラスタライザの設定
 	pipelineDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; //カリングしない
 	pipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID; //ポリゴン内塗りつぶし
 	pipelineDesc.RasterizerState.DepthClipEnable = true; //深度クリッピングを有効に
 
-	//ブレンドステート
-	pipelineDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL; // RGBA全てのチャンネルを描画
+	////ブレンドステート
+	//pipelineDesc.BlendState.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL; // RGBA全てのチャンネルを描画
 
 	//頂点レイアウトの設定
 	pipelineDesc.InputLayout.pInputElementDescs = inputLayout;
@@ -385,7 +434,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//パイプラインにルートシグネチャをセット
 	pipelineDesc.pRootSignature = rootSignature;
 
-	//パイプラインの生成
+	//パイプランステートの生成
 	ID3D12PipelineState* pipelineState = nullptr;
 	result = device->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState));
 	assert(SUCCEEDED(result));
@@ -403,6 +452,34 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			break;
 		}
 		//DirectX毎フレーム処理　ここから
+		
+		//キーボード情報の取得開始
+		keyboard->Acquire();
+
+		//全キーの入力状態を取得する
+		BYTE key[256] = {};
+		keyboard->GetDeviceState(sizeof(key), key);
+
+		//数字の0キーが押されたら
+		if (key[DIK_0]) {
+			OutputDebugStringA("Hit 0\n");
+		}
+
+		if (key[DIK_SPACE]) //スペースキーが押されたら
+		{
+			clearColor[0] = { 0.5f };
+			clearColor[1] = { 0.5f };
+			clearColor[2] = { 0.5f };
+			clearColor[3] = { 0.5f };
+		}
+
+		if (!key[DIK_SPACE]) //スペースキーが押されたら
+		{
+			clearColor[0] = { 0.1f };
+			clearColor[1] = { 0.25f };
+			clearColor[2] = { 0.5f };
+			clearColor[3] = { 0.0f };
+		}
 		//バックバッファの番号を取得(2つなので0番か1番)
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
 
@@ -420,7 +497,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		commandList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
 
 		//3.画面クリア            R     G     B   A
-		FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f }; //青っぽい
 		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
 		//4.描画コマンドここから
