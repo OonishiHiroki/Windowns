@@ -81,7 +81,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	MSG msg{};	//メッセージ
 
-	//DirectX初期化処理　ここから
+	//-------DirectX初期化処理　ここから-------//
 
 #ifdef _DEBUG
 	//デバックレイヤーをオンに
@@ -180,11 +180,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
 	swapChainDesc.Width = 1280;
 	swapChainDesc.Height = 720;
-	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; //色情報の書式
-	swapChainDesc.SampleDesc.Count = 1; //マルチサンプルしない
-	swapChainDesc.BufferUsage = DXGI_USAGE_BACK_BUFFER; //バックバッファ用
-	swapChainDesc.BufferCount = 2; //バッファ数を2つに設定
-	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD; //フリップ後は破棄
+	swapChainDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;				//色情報の書式
+	swapChainDesc.SampleDesc.Count = 1;								//マルチサンプルしない
+	swapChainDesc.BufferUsage = DXGI_USAGE_BACK_BUFFER;				//バックバッファ用
+	swapChainDesc.BufferCount = 2;									//バッファ数を2つに設定
+	swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;		//フリップ後は破棄
 	swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
 	//スワップチェーンの生成
@@ -244,14 +244,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	result = keyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
 	assert(SUCCEEDED(result));
 
-	//DirectX初期化処理　ここまで
+	//-------DirectX初期化処理　ここまで-------//
+
+
+	//-------描画初期化処理 ここから-------//
 
 	//頂点データ
 	XMFLOAT3 vertices[] = {
-		{ -0.5f,-0.5f,0.0f }, //左下
-		{ -0.5f,+0.5f,0.0f }, //左上
-		{ +0.5f,-0.5f,0.0f }, //右下
+		{ -0.5f,-0.5f,0.0f }, //左下 インデックス0
+		{ -0.5f,+0.5f,0.0f }, //左上 インデックス1
+		{ +0.5f,-0.5f,0.0f }, //右下 インデックス2
+		{ +0.5f,+0.5f,0.0f }, //右上 インデックス3
+		//{ -0.5f, 0.0f,0.0f }, //左中
+		//{ +0.5f, 0.0f,0.0f }, //右中
 	};
+
+	//インデックスデータ
+	uint16_t indices[] = {
+		0,1,2, //三角形1つ目
+		1,2,3, //三角形2つ目
+	};
+
 	//頂点データ全体のサイズ　= 頂点データ一つ分のサイズ * 頂点データの要素数
 	UINT sizeVB = static_cast<UINT>(sizeof(XMFLOAT3) * _countof(vertices));
 
@@ -320,6 +333,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	cbResourceDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
 	ID3D12Resource* constBuffMaterial = nullptr;
+
 	//定数バッファの生成
 	result = device->CreateCommittedResource(
 		&cbHeapProp, //ヒープ設定
@@ -490,7 +504,47 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	result = device->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState));
 	assert(SUCCEEDED(result));
 
+	//インデックスデータ全体のサイズ
+	UINT sizeIB = static_cast<UINT>(sizeof(uint16_t) * _countof(indices));
 
+	//リソース設定
+	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	resDesc.Width = sizeIB; //インデックス情報が入る分のサイズ
+	resDesc.Height = 1;
+	resDesc.DepthOrArraySize = 1;
+	resDesc.MipLevels = 1;
+	resDesc.SampleDesc.Count = 1;
+	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+	//インデックスバッファの生成
+	ID3D12Resource* indexBuff = nullptr;
+	result = device->CreateCommittedResource(
+		&heapProp,				//ヒープ設定
+		D3D12_HEAP_FLAG_NONE,
+		&resDesc,				//リソース設定
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&indexBuff));
+
+	//インデックスバッファをマッピング
+	uint16_t* indexMap = nullptr;
+	result = indexBuff->Map(0, nullptr, (void**)&indexMap);
+
+	//全てのインデックスに対して
+	for (int i = 0; i < _countof(indices); i++) {
+		indexMap[i] = indices[i]; //インデックスをコピー
+	}
+
+	//マッピング解除
+	indexBuff->Unmap(0, nullptr);
+
+	//インデックスバッファビューの作成
+	D3D12_INDEX_BUFFER_VIEW ibView{};
+	ibView.BufferLocation = indexBuff->GetGPUVirtualAddress();
+	ibView.Format = DXGI_FORMAT_R16_UINT;
+	ibView.SizeInBytes = sizeIB;
+
+	//-------描画初期化処理　ここまで-------//
 
 	//ゲームループ
 	while (true) {
@@ -504,7 +558,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		if (msg.message == WM_QUIT) {
 			break;
 		}
-		//DirectX毎フレーム処理　ここから
+		//-------DirectX毎フレーム処理　ここから-------//
 
 		//キーボード情報の取得開始
 		keyboard->Acquire();
@@ -540,7 +594,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		D3D12_RESOURCE_BARRIER barrierDesc{};
 		barrierDesc.Transition.pResource = backBuffers[bbIndex];					//バックバッファを指定
 		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;			//表示状態から
-		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;		//	描画状態へ
+		barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;		//描画状態へ
 		commandList->ResourceBarrier(1, &barrierDesc);
 
 		//2.描画先の変更
@@ -549,10 +603,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		rtvHandle.ptr += bbIndex * device->GetDescriptorHandleIncrementSize(rtvHeapDesc.Type);
 		commandList->OMSetRenderTargets(1, &rtvHandle, false, nullptr);
 
-		//3.画面クリア            R     G     B   A
+		//3.画面クリア
 		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
 
-		//4.描画コマンドここから
+		//インデックスバッファビューの設定コマンド
+		commandList->IASetIndexBuffer(&ibView);
+
+		//-------4.描画コマンドここから-------//
 
 		//ビューポート設定コマンド
 		D3D12_VIEWPORT viewport{};
@@ -586,8 +643,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		//定数バッファビュー(CBV)の設定コマンド
 		commandList->SetGraphicsRootConstantBufferView(0, constBuffMaterial->GetGPUVirtualAddress());
 		//描画コマンド
-		commandList->DrawInstanced(_countof(vertices), 1, 0, 0); //全ての頂点を使って描画
-		//4.描画コマンドここまで
+		commandList->DrawIndexedInstanced(_countof(indices),1,0,0,0); //全ての頂点を使って描画
+
+		//-------4.描画コマンドここまで-------//
 
 		//5.リソースバリアを戻す
 		barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
@@ -621,7 +679,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		result = commandList->Reset(commandAllocator, nullptr);
 		assert(SUCCEEDED(result));
 
-		//DirectX毎フレーム処理　ここまで
+		//-------DirectX毎フレーム処理　ここまで-------//
 	}
 
 	//ウィンドウクラスを登録解除
