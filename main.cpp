@@ -8,6 +8,7 @@
 #include<vector>
 #include<string>
 #include<DirectXMath.h>
+#include<DIrectXTex.h>
 using namespace DirectX;
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -354,29 +355,51 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(result));
 
 	//値を書き込みと自動的に転送される
-	constMapMaterial->color = XMFLOAT4(1, 0, 0, 0.5f);
-	
+	constMapMaterial->color = XMFLOAT4(1, 1, 0, 0.5f);
+
 	//-------画像イメージデータの作成-------//
 
-	//横方向ピクセル数
-	const size_t textureWidth = 256;
-	//縦方向ピクセル数
-	const size_t textureHeight = 256;
-	//配列の要素数
-	const size_t imageDataCount = textureWidth * textureHeight;
-	//画像イメージデータ配列
-	XMFLOAT4* imageData = new XMFLOAT4[imageDataCount];
+	////横方向ピクセル数
+	//const size_t textureWidth = 256;
+	////縦方向ピクセル数
+	//const size_t textureHeight = 256;
+	////配列の要素数
+	//const size_t imageDataCount = textureWidth * textureHeight;
+	////画像イメージデータ配列
+	//XMFLOAT4* imageData = new XMFLOAT4[imageDataCount];
 
-	//全ピクセルの色を初期化
-	for (size_t i = 0; i < imageDataCount; i++) {
-		imageData[i].x = rand() % 2;	//R
-		imageData[i].y = rand() % 2;	//G
-		imageData[i].z = rand() % 2;	//B
-		imageData[i].w = 1.0f;	//A
+	////全ピクセルの色を初期化
+	//for (size_t i = 0; i < imageDataCount; i++) {
+	//	imageData[i].x = rand() % 2;	//R
+	//	imageData[i].y = rand() % 2;	//G
+	//	imageData[i].z = rand() % 2;	//B
+	//	imageData[i].w = rand() % 20;	//A
+	//}
+
+	//-------画像ファイルの用意-------//
+	TexMetadata metadata{};
+	ScratchImage scratchImg{};
+	//WICテクスチャのロード
+	result = LoadFromWICFile(
+		L"Resource/micel.jpg",
+		WIC_FLAGS_NONE,
+		&metadata, scratchImg
+	);
+
+	ScratchImage mipChain{};
+	//ミニマップ生成
+	result = GenerateMipMaps(
+		scratchImg.GetImages(), scratchImg.GetImageCount(), scratchImg.GetMetadata(),
+		TEX_FILTER_DEFAULT, 0, mipChain);
+	if (SUCCEEDED(result)) {
+		scratchImg = std::move(mipChain);
+		metadata = scratchImg.GetMetadata();
 	}
 
+	//読み込んだディフーズテクスチャをSRGBとして扱う
+	metadata.format = MakeSRGB(metadata.format);
 	//-------テクスチャバッファ設定-------//
-	
+
 	//ヒープ設定
 	D3D12_HEAP_PROPERTIES textureHeapProp{};
 	textureHeapProp.Type = D3D12_HEAP_TYPE_CUSTOM;
@@ -386,11 +409,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//リソース設定
 	D3D12_RESOURCE_DESC textureResourceDesc{};
 	textureResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	textureResourceDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	textureResourceDesc.Width = textureWidth;	//幅
-	textureResourceDesc.Height = textureHeight;	//高さ
-	textureResourceDesc.DepthOrArraySize = 1;
-	textureResourceDesc.MipLevels = 1;
+	textureResourceDesc.Format = metadata.format;
+	textureResourceDesc.Width = metadata.width;	//幅
+	textureResourceDesc.Height = (UINT)metadata.height;	//高さ
+	textureResourceDesc.DepthOrArraySize = (UINT16)metadata.arraySize;
+	textureResourceDesc.MipLevels = (UINT16)metadata.mipLevels;
 	textureResourceDesc.SampleDesc.Count = 1;
 
 	//-------テクスチャバッファの生成-------//
@@ -405,14 +428,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	//-------テクスチャバッファのデータ転送-------//
 
-	//テクスチャバッファにデータ転送
-	result = texBuff->WriteToSubresource(
-		0,
-		nullptr,							//全領域へのコピー
-		imageData,							//元データアドレス
-		sizeof(XMFLOAT4) * textureWidth,	//1ラインサイズ
-		sizeof(XMFLOAT4) * imageDataCount	//全サイズ
-	);
+	//全ミップマップについて
+	for (size_t i = 0; i < metadata.mipLevels; i++) {
+		//ミップマップレベルを指定してイメージを取得
+		const Image* img = scratchImg.GetImage(i, 0, 0);
+		//テクスチャバッファにデータ転送
+		result = texBuff->WriteToSubresource(
+			(UINT)i,
+			nullptr,							//全領域へのコピー
+			img->pixels,							//元データアドレス
+			(UINT)img->rowPitch,	//1ラインサイズ
+			(UINT)img->slicePitch	//全サイズ
+		);
+		assert(SUCCEEDED(result));
+	}
+
 
 	//-------デスクリプタヒープ生成-------//
 	//SRVの最大個数
@@ -433,11 +463,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = srvHeap->GetCPUDescriptorHandleForHeapStart();
 
 	//-------シェーダリソースビューの作成-------//
+	//シェーダリソースビューの設定
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};					//設定構造体
-	srvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;			//RGBA float
+	srvDesc.Format = resDesc.Format;			//RGBA float
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;		//2Dテクスチャ
-	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MipLevels = resDesc.MipLevels;
 
 	//ハンドルのさす位置にシェーダーりそすびゅー作成
 	device->CreateShaderResourceView(texBuff, &srvDesc, srvHandle);
@@ -772,7 +803,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		//SRVヒープの先頭にあるSRVをルートパラメータ1番に設定
 		commandList->SetGraphicsRootDescriptorTable(1, srvGpuHandle);
 		//描画コマンド
-		commandList->DrawIndexedInstanced(_countof(indices),1,0,0,0); //全ての頂点を使って描画
+		commandList->DrawIndexedInstanced(_countof(indices), 1, 0, 0, 0); //全ての頂点を使って描画
 
 		//-------4.描画コマンドここまで-------//
 
@@ -814,7 +845,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//ウィンドウクラスを登録解除
 	UnregisterClass(w.lpszClassName, w.hInstance);
 
-	delete[] imageData;
-	
+	//delete[] scratchImg;
+
 	return 0;
 }
