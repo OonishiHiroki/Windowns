@@ -115,6 +115,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f }; //青っぽい
 
+	float angle = 0.0f;
+
 	//DXGIファクトリーの生成
 	result = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
 	assert(SUCCEEDED(result));
@@ -263,10 +265,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	//頂点データ
 	Vertex vertices[] = {
-		{{-50.0f, -50.0f, 50.0f},{0.0f,1.0f}}, //左下
-		{{-50.0f,  50.0f, 50.0f},{0.0f,0.0f}}, //左上
-		{{ 50.0f, -50.0f, 250.0f},{1.0f,1.0f}}, //右下
-		{{ 50.0f,  50.0f, 250.0f},{1.0f,0.0f}}, //右上
+		{{-50.0f, -50.0f, 0.0f},{0.0f,1.0f}}, //左下
+		{{-50.0f,  50.0f, 0.0f},{0.0f,0.0f}}, //左上
+		{{ 50.0f, -50.0f, 0.0f},{1.0f,1.0f}}, //右下
+		{{ 50.0f,  50.0f, 0.0f},{1.0f,0.0f}}, //右上
 		//{ -0.5f, 0.0f,0.0f }, //左中
 		//{ +0.5f, 0.0f,0.0f }, //右中
 	};
@@ -411,8 +413,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		0.1f, 1000.0f
 	);
 
-	constMapTransform->mat = matProjection;
-	//-------画像イメージデータの作成-------//
+	XMMATRIX matView;
+	XMFLOAT3 eye(0, 100, -100);
+	XMFLOAT3 target(0, 0, 0);
+	XMFLOAT3 up(0, 1, 0);
+	matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+	
+	constMapTransform->mat = matView * matProjection;	//-------画像イメージデータの作成-------//
 
 	////横方向ピクセル数
 	//const size_t textureWidth = 256;
@@ -442,6 +449,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	);
 
 	ScratchImage mipChain{};
+
 	//ミニマップ生成
 	result = GenerateMipMaps(
 		scratchImg.GetImages(), scratchImg.GetImageCount(), scratchImg.GetMetadata(),
@@ -801,6 +809,20 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			clearColor[2] = { 0.5f };
 			clearColor[3] = { 0.0f };
 		}
+
+		if (key[DIK_D] || key[DIK_A]) 
+		{
+			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f);}
+			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f);}
+
+			//angleラジアンだけ軸周りに回転。半径は-100
+			eye.x = -100 * (sinf(angle));
+			eye.z = -100 * (cosf(angle));
+			matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+		}
+		
+		constMapTransform->mat = matView * matProjection;
+
 		//バックバッファの番号を取得(2つなので0番か1番)
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
 
