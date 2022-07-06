@@ -115,6 +115,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f }; //青っぽい
 
+	//スケーリング倍率
+	XMFLOAT3 scale;
+
+	//回転角
+	XMFLOAT3 rotation;
+
+	//座標
+	XMFLOAT3 position;
+
+	scale = { 1.0f,1.0f,1.0f };
+
+	rotation = { 0.0f,0.0f,0.0f };
+
+	position = { 0.0f,0.0f,0.0f };
+
 	float angle = 0.0f;
 
 	//DXGIファクトリーの生成
@@ -413,13 +428,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		0.1f, 1000.0f
 	);
 
+	//ビュー変換
 	XMMATRIX matView;
-	XMFLOAT3 eye(0, 100, -100);
+	XMFLOAT3 eye(0, 0, -200);
 	XMFLOAT3 target(0, 0, 0);
 	XMFLOAT3 up(0, 1, 0);
 	matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
-	
-	constMapTransform->mat = matView * matProjection;	//-------画像イメージデータの作成-------//
 
 	////横方向ピクセル数
 	//const size_t textureWidth = 256;
@@ -810,18 +824,64 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			clearColor[3] = { 0.0f };
 		}
 
+		//いずれかのキーを押していたら
+		if (key[DIK_UP] || key[DIK_DOWN] || key[DIK_RIGHT] || key[DIK_LEFT]) {
+			//座標を移動する処理(Z座標)
+			if (key[DIK_UP]) {
+				position.z += 1.0f;
+			}
+			else if (key[DIK_DOWN]) {
+				position.z -= 1.0f;
+			}
+			if (key[DIK_RIGHT]) {
+				position.x += 1.0f;
+			}
+			else if (key[DIK_LEFT]) {
+				position.x -= 1.0f;
+			}
+		}
+
+
+		//ワールド変換
+		XMMATRIX matWorld;
+
+		//スケーリング行列
+		XMMATRIX matScale;
+		matScale = XMMatrixScaling(scale.x, scale.y, scale.z);
+
+		//回転行列
+		XMMATRIX matRot;
+		matRot = XMMatrixIdentity();
+		matRot *= XMMatrixRotationZ(XMConvertToRadians(rotation.z));	//Z軸まわりに45度回転
+		matRot *= XMMatrixRotationX(XMConvertToRadians(rotation.x));	//X軸まわりに15度回転
+		matRot *= XMMatrixRotationY(XMConvertToRadians(rotation.y));	//Y軸まわりに30度回転
+
+		//平行移動行列
+		XMMATRIX matTrans;
+		matTrans = XMMatrixTranslation(position.x, position.y, position.z);
+
+		matWorld = XMMatrixIdentity();
+		matWorld *= matScale;	//ワールド行列にスケーリングを反映
+		matWorld *= matRot;		//ワールド行列に回転を反映
+		matWorld *= matTrans;
+
+
+		constMapTransform->mat = matWorld * matView * matProjection;	//-------画像イメージデータの作成-------//
+
+
 		if (key[DIK_D] || key[DIK_A]) 
 		{
 			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f);}
 			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f);}
 
 			//angleラジアンだけ軸周りに回転。半径は-100
-			eye.x = -100 * (sinf(angle));
-			eye.z = -100 * (cosf(angle));
+			eye.x = -200 * (sinf(angle));
+			eye.z = -200 * (cosf(angle));
 			matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+
 		}
 		
-		constMapTransform->mat = matView * matProjection;
+		//constMapTransform->mat = matWorld * matView * matProjection;
 
 		//バックバッファの番号を取得(2つなので0番か1番)
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
