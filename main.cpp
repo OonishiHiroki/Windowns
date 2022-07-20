@@ -364,10 +364,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	unsigned short indices[] = {
 		//前
 		0,1,2, //三角形1つ目
-		1,2,3, //三角形2つ目
+		2,1,3, //三角形2つ目
 		//後ろ
 		4,5,6,
-		5,6,7,
+		7,6,5,
 		//左
 		8,9,10,
 		9,10,11,
@@ -750,7 +750,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	blenddesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;	//1.0f-ソースのアルファ値
 
 	//ラスタライザの設定
-	pipelineDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE; //カリングしない
+	pipelineDesc.RasterizerState.CullMode = D3D12_CULL_MODE_BACK; //カリングしない
 	pipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID; //ポリゴン内塗りつぶし
 	pipelineDesc.RasterizerState.DepthClipEnable = true; //深度クリッピングを有効に
 
