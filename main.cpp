@@ -132,6 +132,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	float angle = 0.0f;
 
+	float colorParet = 1.0f;
+
 	//DXGIファクトリーの生成
 	result = CreateDXGIFactory(IID_PPV_ARGS(&dxgiFactory));
 	assert(SUCCEEDED(result));
@@ -287,7 +289,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//深度値用ヒーププロパティ
 	D3D12_HEAP_PROPERTIES depthHeapProp{};
 	depthHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
-	
+
 	//深度値のクリア設定
 	D3D12_CLEAR_VALUE depthClearValue{};
 	depthClearValue.DepthStencil.Depth = 1.0f;			//深度値1.0f(最大値)でクリア
@@ -498,8 +500,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	result = constBuffTransform->Map(0, nullptr, (void**)&constMapTransform);	//マッピング
 	assert(SUCCEEDED(result));
 
-	//値を書き込みと自動的に転送される
-	constMapMaterial->color = XMFLOAT4(1, 1, 1, 1);
+	////値を書き込みと自動的に転送される
+	//constMapMaterial->color = XMFLOAT4(1, 1, 1, 1);
 
 	//単位行列を代入
 	constMapTransform->mat = XMMatrixIdentity();
@@ -510,9 +512,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//constMapTransform->mat.r[3].m128_f32[1] = 1.0f;
 
 	constMapTransform->mat = XMMatrixOrthographicOffCenterLH(
-		0.0f,window_width,
-		0.0f,window_height,
-		0.0f,1.0f
+		0.0f, window_width,
+		0.0f, window_height,
+		0.0f, 1.0f
 	);
 
 	//射影変換行列(透視投影)
@@ -924,6 +926,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			clearColor[3] = { 0.0f };
 		}
 
+		//値を書き込みと自動的に転送される
+		for (int i = 0; i < 10; i++) {
+			if (colorParet <= 1.0f) {
+				colorParet -= 0.005f;
+				break;
+			}
+		}
+		constMapMaterial->color = XMFLOAT4(1.0f, colorParet, 1.0f, 0.5f);
+
+
 		//いずれかのキーを押していたら
 		if (key[DIK_UP] || key[DIK_DOWN] || key[DIK_RIGHT] || key[DIK_LEFT]) {
 			//座標を移動する処理(Z座標)
@@ -969,10 +981,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		constMapTransform->mat = matWorld * matView * matProjection;	//-------画像イメージデータの作成-------//
 
 
-		if (key[DIK_D] || key[DIK_A]) 
-		{
-			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f);}
-			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f);}
+		if (key[DIK_D] || key[DIK_A]) {
+			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f); }
+			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f); }
 
 			//angleラジアンだけ軸周りに回転。半径は-100
 			eye.x = -200 * (sinf(angle));
@@ -982,7 +993,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
 
 		}
-		
+
 		//constMapTransform->mat = matWorld * matView * matProjection;
 
 		//バックバッファの番号を取得(2つなので0番か1番)
@@ -1005,7 +1016,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		//3.画面クリア
 		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f,0,0,nullptr);
+		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 		//インデックスバッファビューの設定コマンド
 		commandList->IASetIndexBuffer(&ibView);
