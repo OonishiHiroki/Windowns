@@ -244,6 +244,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	result = keyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
 	assert(SUCCEEDED(result));
 
+
+	float colorParet = 0.0f;
+
 	//-------DirectX初期化処理　ここまで-------//
 
 
@@ -254,7 +257,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{ -0.5f,-0.5f,0.0f }, //左下 インデックス0
 		{ -0.5f,+0.5f,0.0f }, //左上 インデックス1
 		{ +0.5f,-0.5f,0.0f }, //右下 インデックス2
-		{ +0.5f,+0.5f,0.0f }, //右上 インデックス3
+		//{ +0.5f,+0.5f,0.0f }, //右上 インデックス3
 		//{ -0.5f, 0.0f,0.0f }, //左中
 		//{ +0.5f, 0.0f,0.0f }, //右中
 	};
@@ -350,7 +353,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(result));
 
 	//値を書き込みと自動的に転送される
-	constMapMaterial->color = XMFLOAT4(1, 0, 0, 0.5f);
+	//constMapMaterial->color = XMFLOAT4(1.0f, 0.0f, 0.0f, 0.5f);
 
 	//頂点シェーダの読み込みとコンパイル
 	result = D3DCompileFromFile(
@@ -560,6 +563,26 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 		//-------DirectX毎フレーム処理　ここから-------//
 
+		////キャラクター移動処理
+		//{
+		//	//キャラクターの移動ベクトル
+		//	Vector3 move = { 0,0,0 };
+		//	if (input_->PushKey(DIK_LEFT)) {
+		//		move.x -= 0.5f;
+		//	}
+		//	if (input_->PushKey(DIK_RIGHT)) {
+		//		move.x += 0.5f;
+		//	}
+
+		//	worldTransforms_[Partid::kRoot].translation_ += move;
+
+		//	debugText_->SetPos(50, 130);
+		//	debugText_->Printf("translation[0] : %f,%f,%f",
+		//					   worldTransforms_[Partid::kRoot].translation_.x,
+		//					   worldTransforms_[Partid::kRoot].translation_.y,
+		//					   worldTransforms_[Partid::kRoot].translation_.z);
+		//}
+
 		//キーボード情報の取得開始
 		keyboard->Acquire();
 
@@ -587,6 +610,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			clearColor[2] = { 0.5f };
 			clearColor[3] = { 0.0f };
 		}
+
+		for (int i = 0; i < 100; i++) {
+			if (colorParet >= 0.0f) {
+				colorParet += 0.001f;
+				break;
+			}
+		}
+		constMapMaterial->color = XMFLOAT4(colorParet, 0.0f, 0.0f, 0.5f);
+
 		//バックバッファの番号を取得(2つなので0番か1番)
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
 
@@ -643,7 +675,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		//定数バッファビュー(CBV)の設定コマンド
 		commandList->SetGraphicsRootConstantBufferView(0, constBuffMaterial->GetGPUVirtualAddress());
 		//描画コマンド
-		commandList->DrawIndexedInstanced(_countof(indices),1,0,0,0); //全ての頂点を使って描画
+		commandList->DrawIndexedInstanced(_countof(indices), 1, 0, 0, 0); //全ての頂点を使って描画
 
 		//-------4.描画コマンドここまで-------//
 
