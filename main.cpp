@@ -47,6 +47,7 @@ struct Object3d {
 	XMMATRIX matWorld;
 	//親オブジェクトへのポイント
 	Object3d* parent = nullptr;
+
 };
 
 //ウィンドウプロシージャ
@@ -112,10 +113,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//-------DirectX初期化処理　ここから-------//
 
 #ifdef _DEBUG
-	//デバックレイヤーをオンに
-	ID3D12Debug* debugController;
+//デバックレイヤーをオンに
+	ID3D12Debug1* debugController;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
 		debugController->EnableDebugLayer();
+		debugController->SetEnableGPUBasedValidation(TRUE);
 	}
 
 #endif
@@ -335,6 +337,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		&dsvDesc,
 		dsvHeap->GetCPUDescriptorHandleForHeapStart());
 
+#ifdef _DEBUG
+	ID3D12InfoQueue* infoQueue;
+	if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue)))) {
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
+		infoQueue->Release();
+
+	}
+#endif
+
+	//抑制するエラー
+	D3D12_MESSAGE_ID denyIds[] = {
+		/*
+		* Windows11でのDXGIデバックレイヤーとDX12デバックレイヤーの相互作用バグによるエラーメッセージ
+		* https://stackoverflow.com/questions/69805245/directX-12-application-is-crashing-in-windows-11
+		*/
+		D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE
+	};
 
 	//-------DirectX初期化処理　ここまで-------//
 
@@ -511,6 +531,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	//ID3D12Resource* constBuffTransform1 = nullptr;
 	//ConstBufferDataTransform* constMapTransform1 = nullptr;
+
+
+	//3Dオブジェクトの数
+	const size_t kObjectCount = 50;
+	//3Dオブジェクトの配列
+	Object3d object3ds[kObjectCount];
+
 
 	{
 		//ヒープ設定
