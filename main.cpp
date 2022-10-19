@@ -1,5 +1,4 @@
-#define DIRECTINPUT_VERSION 0x0800 //DirectInputのバージョン指定
-#include<dinput.h>
+//#define DIRECTINPUT_VERSION 0x0800 //DirectInputのバージョン指定
 #include<d3dcompiler.h>
 #include <windows.h>
 #include<d3d12.h>
@@ -9,13 +8,12 @@
 #include<string>
 #include<DirectXMath.h>
 #include<DIrectXTex.h>
+#include "Input.h"
 using namespace DirectX;
 
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
-#pragma comment(lib,"dinput8.lib")
-#pragma comment(lib,"dxguid.lib")
 
 //定数バッファ用データ構造体
 struct ConstBufferDataMaterial {
@@ -113,6 +111,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ID3D12GraphicsCommandList* commandList = nullptr;
 	ID3D12CommandQueue* commandQueue = nullptr;
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
+
+	Input* input = nullptr;
+	//入力の初期化
+	input = new Input();
+	input->Initialize(w.hInstance,hwnd);
+
 
 	FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f }; //青っぽい
 
@@ -288,7 +292,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//深度値用ヒーププロパティ
 	D3D12_HEAP_PROPERTIES depthHeapProp{};
 	depthHeapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
-	
+
 	//深度値のクリア設定
 	D3D12_CLEAR_VALUE depthClearValue{};
 	depthClearValue.DepthStencil.Depth = 1.0f;			//深度値1.0f(最大値)でクリア
@@ -385,7 +389,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	for (int i = 0; i < 23 / 3; i++) {
 		//三角形1つごとに計算していく
 		//三角形のインデックスを取り出して、一時的な変数を入れる
-		
+
 	//   符号なし  intより幅が狭い整数
 		unsigned short indiceszero = indices[i * 3 + 0];
 		unsigned short indicesone = indices[i * 3 + 1];
@@ -550,9 +554,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//constMapTransform->mat.r[3].m128_f32[1] = 1.0f;
 
 	constMapTransform0->mat = XMMatrixOrthographicOffCenterLH(
-		0.0f,window_width,
-		0.0f,window_height,
-		0.0f,1.0f
+		0.0f, window_width,
+		0.0f, window_height,
+		0.0f, 1.0f
 	);
 
 	//射影変換行列(透視投影)
@@ -952,6 +956,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		BYTE key[256] = {};
 		keyboard->GetDeviceState(sizeof(key), key);
 
+		input->Update();
+
 		//数字の0キーが押されたら
 		if (key[DIK_0]) {
 			OutputDebugStringA("Hit 0\n");
@@ -974,18 +980,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 
 		//いずれかのキーを押していたら
-		if (key[DIK_UP] || key[DIK_DOWN] || key[DIK_RIGHT] || key[DIK_LEFT]) {
+		if (input->TriggerKey(DIK_UP) || input->TriggerKey(DIK_DOWN) || input->TriggerKey(DIK_RIGHT) || input->TriggerKey(DIK_LEFT)) {
 			//座標を移動する処理(Z座標)
-			if (key[DIK_UP]) {
+			if (input->TriggerKey(DIK_UP)) {
 				position.z += 1.0f;
 			}
-			else if (key[DIK_DOWN]) {
+			else if (input->TriggerKey(DIK_DOWN)) {
 				position.z -= 1.0f;
 			}
-			if (key[DIK_RIGHT]) {
+			if (input->TriggerKey(DIK_RIGHT)) {
 				position.x += 1.0f;
 			}
-			else if (key[DIK_LEFT]) {
+			else if (input->TriggerKey(DIK_LEFT)) {
 				position.x -= 1.0f;
 			}
 		}
@@ -1009,7 +1015,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		XMMATRIX matTrans0;
 		matTrans0 = XMMatrixTranslation(position.x, position.y, position.z);
 
-		matWorld0= XMMatrixIdentity();
+		matWorld0 = XMMatrixIdentity();
 		matWorld0 *= matScale0;	//ワールド行列にスケーリングを反映
 		matWorld0 *= matRot0;		//ワールド行列に回転を反映
 		matWorld0 *= matTrans0;
@@ -1043,10 +1049,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		constMapTransform1->mat = matWorld1 * matView * matProjection;	//-------画像イメージデータの作成-------//
 
-		if (key[DIK_D] || key[DIK_A]) 
-		{
-			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f);}
-			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f);}
+		if (key[DIK_D] || key[DIK_A]) {
+			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f); }
+			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f); }
 
 			//angleラジアンだけ軸周りに回転。半径は-100
 			eye.x = -200 * (sinf(angle));
@@ -1079,7 +1084,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		//3.画面クリア
 		commandList->ClearRenderTargetView(rtvHandle, clearColor, 0, nullptr);
-		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f,0,0,nullptr);
+		commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 		//インデックスバッファビューの設定コマンド
 		commandList->IASetIndexBuffer(&ibView);
@@ -1169,6 +1174,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		//-------DirectX毎フレーム処理　ここまで-------//
 	}
+
+	//各種解放
+	delete input;
 
 	//ウィンドウクラスを登録解除
 	UnregisterClass(w.lpszClassName, w.hInstance);
