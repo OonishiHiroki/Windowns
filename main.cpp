@@ -1,6 +1,5 @@
 //#define DIRECTINPUT_VERSION 0x0800 //DirectInputのバージョン指定
 #include<d3dcompiler.h>
-#include <windows.h>
 #include<d3d12.h>
 #include<dxgi1_6.h>
 #include<cassert>
@@ -9,6 +8,8 @@
 #include<DirectXMath.h>
 #include<DIrectXTex.h>
 #include "Input.h"
+#include "WinApp.h"
+
 using namespace DirectX;
 
 #pragma comment(lib, "d3dcompiler.lib")
@@ -53,42 +54,42 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	OutputDebugStringA("Hello,DirectX!!\n");
 
 #pragma region WindowCreate
-	//ウィンドウサイズ
-	const int window_width = 1280; //横幅
-	const int window_height = 720; //縦幅
+	////ウィンドウサイズ
+	//const int window_width = 1280; //横幅
+	//const int window_height = 720; //縦幅
 
-	//ウィンドウクラスの設定
-	WNDCLASSEX w{};
-	w.cbSize = sizeof(WNDCLASSEX);
-	w.lpfnWndProc = (WNDPROC)WindowProc;
-	w.lpszClassName = L"DirectXGame";
-	w.hInstance = GetModuleHandle(nullptr);
-	w.hCursor = LoadCursor(NULL, IDC_ARROW);
+	////ウィンドウクラスの設定
+	//WNDCLASSEX w{};
+	//w.cbSize = sizeof(WNDCLASSEX);
+	//w.lpfnWndProc = (WNDPROC)WindowProc;
+	//w.lpszClassName = L"DirectX";
+	//w.hInstance = GetModuleHandle(nullptr);
+	//w.hCursor = LoadCursor(NULL, IDC_ARROW);
 
-	//ウィンドウクラスをOSに登録する
-	RegisterClassEx(&w);
-	//ウィンドウサイズ{X軸 Y軸　横幅　縦幅}
-	RECT wrc = { 0,0,window_width,window_height };
-	//自動でサイズの補正をする
-	AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
+	////ウィンドウクラスをOSに登録する
+	//RegisterClassEx(&w);
+	////ウィンドウサイズ{X軸 Y軸　横幅　縦幅}
+	//RECT wrc = { 0,0,window_width,window_height };
+	////自動でサイズの補正をする
+	//AdjustWindowRect(&wrc, WS_OVERLAPPEDWINDOW, false);
 
 
-	//ウィンドウオブジェクトの生成
-	HWND hwnd = CreateWindow(
-		w.lpszClassName,		//クラス名
-		L"DirectXGame",			//タイトルバーの文字
-		WS_OVERLAPPEDWINDOW,	//標準的なウィンドウスタイル
-		CW_USEDEFAULT,			//表示X座標(OSに任せる)
-		CW_USEDEFAULT,			//表示Y座標(OSに任せる)
-		wrc.right - wrc.left,	//ウィンドウ横幅
-		wrc.bottom - wrc.top,	//ウィンドウ縦幅
-		nullptr,				//親ウィンドウハンドル
-		nullptr,				//メニューハンドル
-		w.hInstance,			//呼び出しアプリケーションハンドル
-		nullptr);				//オプション
+	////ウィンドウオブジェクトの生成
+	//HWND hwnd = CreateWindow(
+	//	w.lpszClassName,		//クラス名
+	//	L"LE2B_07_オオニシ_ヒロキ_GE3",			//タイトルバーの文字
+	//	WS_OVERLAPPEDWINDOW,	//標準的なウィンドウスタイル
+	//	CW_USEDEFAULT,			//表示X座標(OSに任せる)
+	//	CW_USEDEFAULT,			//表示Y座標(OSに任せる)
+	//	wrc.right - wrc.left,	//ウィンドウ横幅
+	//	wrc.bottom - wrc.top,	//ウィンドウ縦幅
+	//	nullptr,				//親ウィンドウハンドル
+	//	nullptr,				//メニューハンドル
+	//	w.hInstance,			//呼び出しアプリケーションハンドル
+	//	nullptr);				//オプション
 
-	//ウィンドウを表示状態にする
-	ShowWindow(hwnd, SW_SHOW);
+	////ウィンドウを表示状態にする
+	//ShowWindow(hwnd, SW_SHOW);
 
 	MSG msg{};	//メッセージ
 
@@ -112,10 +113,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ID3D12CommandQueue* commandQueue = nullptr;
 	ID3D12DescriptorHeap* rtvHeap = nullptr;
 
+	//ポインタ
 	Input* input = nullptr;
+	WinApp* winApp = nullptr;
+
+	//WindowsAPIの初期化
+	winApp = new WinApp();
+	winApp->Initialize();
+
 	//入力の初期化
 	input = new Input();
-	input->Initialize(w.hInstance,hwnd);
+	input->Initialize(winApp);
+
 
 
 	FLOAT clearColor[] = { 0.1f,0.25f,0.5f,0.0f }; //青っぽい
@@ -223,7 +232,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	//スワップチェーンの生成
 	result = dxgiFactory->CreateSwapChainForHwnd(
-		commandQueue, hwnd, &swapChainDesc, nullptr, nullptr,
+		commandQueue, winApp->GetHwnd(), &swapChainDesc, nullptr, nullptr,
 		(IDXGISwapChain1**)&swapChain);
 	assert(SUCCEEDED(result));
 
@@ -263,27 +272,27 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	result = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
 
-	//DirectInputの初期化
-	IDirectInput8* directInput = nullptr;
-	result = DirectInput8Create(w.hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&directInput, nullptr);
-	assert(SUCCEEDED(result));
-	//キーボードデバイスの生成
-	IDirectInputDevice8* keyboard = nullptr;
-	result = directInput->CreateDevice(GUID_SysKeyboard, &keyboard, NULL);
-	assert(SUCCEEDED(result));
-	//入力データ形式のセット
-	result = keyboard->SetDataFormat(&c_dfDIKeyboard); //標準形式
-	assert(SUCCEEDED(result));
-	//排他制御レベルのセット
-	result = keyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
-	assert(SUCCEEDED(result));
+	////DirectInputの初期化
+	//IDirectInput8* directInput = nullptr;
+	//result = DirectInput8Create(w.hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&directInput, nullptr);
+	//assert(SUCCEEDED(result));
+	////キーボードデバイスの生成
+	//IDirectInputDevice8* keyboard = nullptr;
+	//result = directInput->CreateDevice(GUID_SysKeyboard, &keyboard, NULL);
+	//assert(SUCCEEDED(result));
+	////入力データ形式のセット
+	//result = keyboard->SetDataFormat(&c_dfDIKeyboard); //標準形式
+	//assert(SUCCEEDED(result));
+	////排他制御レベルのセット
+	//result = keyboard->SetCooperativeLevel(hwnd, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
+	//assert(SUCCEEDED(result));
 
 	//--------深度バッファのリソース-------//
 	//リソース設定
 	D3D12_RESOURCE_DESC depthResourceDesc{};
 	depthResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	depthResourceDesc.Width = window_width;									//レンダーターゲットに合わせる
-	depthResourceDesc.Height = window_height;								//レンダーターゲットに合わせる
+	depthResourceDesc.Width = WinApp::window_width;									//レンダーターゲットに合わせる
+	depthResourceDesc.Height = WinApp::window_height;								//レンダーターゲットに合わせる
 	depthResourceDesc.DepthOrArraySize = 1;
 	depthResourceDesc.Format = DXGI_FORMAT_D32_FLOAT;						//深度値フォーマット
 	depthResourceDesc.SampleDesc.Count = 1;
@@ -554,15 +563,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//constMapTransform->mat.r[3].m128_f32[1] = 1.0f;
 
 	constMapTransform0->mat = XMMatrixOrthographicOffCenterLH(
-		0.0f, window_width,
-		0.0f, window_height,
+		0.0f, WinApp::window_width,
+		0.0f, WinApp::window_height,
 		0.0f, 1.0f
 	);
 
 	//射影変換行列(透視投影)
 	XMMATRIX matProjection = XMMatrixPerspectiveFovLH(
 		XMConvertToRadians(45.0f),
-		(float)window_width / window_height,
+		(float)WinApp::window_width / WinApp::window_height,
 		0.1f, 1000.0f
 	);
 
@@ -937,33 +946,28 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	//ゲームループ
 	while (true) {
-		//メッセージがある？
-		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);	//キー入力メッセージの処理
-			DispatchMessage(&msg);	//プロシージャにメッセージを送る
-		}
-
-		//×ボタンで終了メッセージが来たらゲームループを抜ける
-		if (msg.message == WM_QUIT) {
+		//Windowのメッセージ処理
+		if (winApp->ProcessMessage()) {
+			//ゲームループを抜ける
 			break;
 		}
 		//-------DirectX毎フレーム処理　ここから-------//
 
 		//キーボード情報の取得開始
-		keyboard->Acquire();
+		//keyboard->Acquire();
 
 		//全キーの入力状態を取得する
-		BYTE key[256] = {};
-		keyboard->GetDeviceState(sizeof(key), key);
+	/*	BYTE key[256] = {};
+		keyboard->GetDeviceState(sizeof(key), key);*/
 
 		input->Update();
 
 		//数字の0キーが押されたら
-		if (key[DIK_0]) {
+		if (input->PushKey(DIK_0)) {
 			OutputDebugStringA("Hit 0\n");
 		}
 
-		if (key[DIK_SPACE]) //スペースキーが押されたら
+		if (input->PushKey(DIK_SPACE)) //スペースキーが押されたら
 		{
 			clearColor[0] = { 0.5f };
 			clearColor[1] = { 0.5f };
@@ -971,7 +975,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			clearColor[3] = { 0.5f };
 		}
 
-		if (!key[DIK_SPACE]) //スペースキーが押されたら
+		if (!input->PushKey(DIK_SPACE)) //スペースキーが押されたら
 		{
 			clearColor[0] = { 0.1f };
 			clearColor[1] = { 0.25f };
@@ -980,7 +984,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 
 		//いずれかのキーを押していたら
-		if (input->TriggerKey(DIK_UP) || input->TriggerKey(DIK_DOWN) || input->TriggerKey(DIK_RIGHT) || input->TriggerKey(DIK_LEFT)) {
+		
 			//座標を移動する処理(Z座標)
 			if (input->TriggerKey(DIK_UP)) {
 				position.z += 1.0f;
@@ -994,8 +998,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			else if (input->TriggerKey(DIK_LEFT)) {
 				position.x -= 1.0f;
 			}
-		}
-
+		
 
 		//ワールド変換
 		XMMATRIX matWorld0;
@@ -1049,9 +1052,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		constMapTransform1->mat = matWorld1 * matView * matProjection;	//-------画像イメージデータの作成-------//
 
-		if (key[DIK_D] || key[DIK_A]) {
-			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f); }
-			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f); }
+		if (input->PushKey(DIK_D) || input->PushKey(DIK_A)) {
+			if (input->PushKey(DIK_D)) { angle += XMConvertToRadians(1.0f); }
+			else if (input->PushKey(DIK_A)) { angle -= XMConvertToRadians(1.0f); }
 
 			//angleラジアンだけ軸周りに回転。半径は-100
 			eye.x = -200 * (sinf(angle));
@@ -1093,8 +1096,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		//ビューポート設定コマンド
 		D3D12_VIEWPORT viewport{};
-		viewport.Width = window_width;
-		viewport.Height = window_height;
+		viewport.Width = WinApp::window_width;
+		viewport.Height = WinApp::window_height;
 		viewport.TopLeftX = 0;
 		viewport.TopLeftY = 0;
 		viewport.MinDepth = 0.0f;
@@ -1104,9 +1107,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		//シザー矩形
 		D3D12_RECT scissorRect{};
 		scissorRect.left = 0;									//切り抜き座標左
-		scissorRect.right = scissorRect.left + window_width;	//切り抜き座標右
+		scissorRect.right = scissorRect.left + WinApp::window_width;	//切り抜き座標右
 		scissorRect.top = 0;									//切り抜き座標上
-		scissorRect.bottom = scissorRect.top + window_height;	//切り抜き座標下
+		scissorRect.bottom = scissorRect.top + WinApp::window_height;	//切り抜き座標下
 		//シザー矩形設定コマンドをコマンドリストに積む
 		commandList->RSSetScissorRects(1, &scissorRect);
 
@@ -1175,11 +1178,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		//-------DirectX毎フレーム処理　ここまで-------//
 	}
 
+	//WindowAPIの終了処理
+	winApp->Finalize();
+
 	//各種解放
 	delete input;
+	delete winApp;
 
-	//ウィンドウクラスを登録解除
-	UnregisterClass(w.lpszClassName, w.hInstance);
+	////ウィンドウクラスを登録解除
+	//UnregisterClass(w.lpszClassName, w.hInstance);
+
 
 	//delete[] scratchImg;
 
