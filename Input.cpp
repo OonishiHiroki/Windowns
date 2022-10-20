@@ -45,7 +45,7 @@ void Input::Update() {
 	result = keyboard->Acquire();
 
 	//‘SƒL[‚Ì“ü—Íó‘Ô‚ðŽæ“¾‚·‚é
-	BYTE key[256] = {};
+	//BYTE key[256] = {};
 
 	result = keyboard->GetDeviceState(sizeof(key), key);
 
