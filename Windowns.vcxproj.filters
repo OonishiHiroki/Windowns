@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="シェーダー ファイル">
+      <UniqueIdentifier>{f81cbe05-5093-4539-8f02-ec6f6f61f2be}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -20,10 +23,25 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="BasicVS.hlsl" />
-    <FxCompile Include="BasicPS.hlsl" />
+    <FxCompile Include="BasicVS.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </FxCompile>
+    <FxCompile Include="BasicPS.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </FxCompile>
+    <FxCompile Include="SpriteVS.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </FxCompile>
+    <FxCompile Include="SpritePS.hlsl">
+      <Filter>シェーダー ファイル</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Basic.hlsli" />
+    <None Include="Basic.hlsli">
+      <Filter>シェーダー ファイル</Filter>
+    </None>
+    <None Include="Sprite.hlsli">
+      <Filter>シェーダー ファイル</Filter>
+    </None>
   </ItemGroup>
 </Project>
