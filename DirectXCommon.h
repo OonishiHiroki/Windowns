@@ -30,6 +30,11 @@ public:
 	//フェンスの初期化
 	void InitializeFence();
 
+	//描画前処理
+	void PreDraw();
+
+	//描画後処理
+	void PostDraw();
 
 private:
 	//WindowsAPI
@@ -40,7 +45,13 @@ private:
 	ComPtr<ID3D12CommandQueue> commandQueue;
 	ComPtr<IDXGISwapChain4> swapChain;
 	ComPtr<ID3D12DescriptorHeap> rtvHeap;
+	ComPtr<ID3D12DescriptorHeap> dsvHeap;
 	ComPtr<ID3D12Fence> fence;
+
+	D3D12_RESOURCE_BARRIER barrierDesc{};
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+
+	UINT64 fenceVal = 0;
 
 	//DirectX12デバイス
 	Microsoft::WRL::ComPtr<ID3D12Device> device;
@@ -49,6 +60,6 @@ private:
 	//バックバッファ
 	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> backBuffers;
 
-private:
+
 };
 
