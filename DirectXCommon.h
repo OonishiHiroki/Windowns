@@ -48,10 +48,9 @@ private:
 	ComPtr<ID3D12DescriptorHeap> dsvHeap;
 	ComPtr<ID3D12Fence> fence;
 
-	D3D12_RESOURCE_BARRIER barrierDesc{};
-	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
-
 	UINT64 fenceVal = 0;
+
+	UINT rtvHD = 0;
 
 	//DirectX12デバイス
 	Microsoft::WRL::ComPtr<ID3D12Device> device;
@@ -59,7 +58,6 @@ private:
 	Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory;
 	//バックバッファ
 	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> backBuffers;
-
 
 };
 

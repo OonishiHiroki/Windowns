@@ -43,9 +43,10 @@ void DirectXCommon::InitializeDevice() {
 
 #ifdef _DEBUG
 	//デバックレイヤーをオンに
-	ID3D12Debug* debugController;
+	ID3D12Debug1* debugController;
 	if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)))) {
 		debugController->EnableDebugLayer();
+		debugController->SetEnableGPUBasedValidation(TRUE);
 	}
 #endif
 
@@ -102,6 +103,36 @@ void DirectXCommon::InitializeDevice() {
 			break;
 		}
 	}
+
+#ifdef _DEBUG
+	ID3D12InfoQueue* infoQueue;
+	if (SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&infoQueue)))) {
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, true);
+		infoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, true);
+
+		//抑制するエラー
+		D3D12_MESSAGE_ID denyIds[] = {
+			/*
+			* Windows11でのDXGIデバックレイヤーとDX12デバックレイヤーの相互作用バグによるエラーメッセージ
+			* https://stackoverflow.com/questions/69805245/directx-12-application-is-crashing-in-windows-11
+			*/
+			D3D12_MESSAGE_ID_RESOURCE_BARRIER_MISMATCHING_COMMAND_LIST_TYPE
+		};
+
+		//抑制する表示レベル
+		D3D12_MESSAGE_SEVERITY severities[] = { D3D12_MESSAGE_SEVERITY_INFO };
+		D3D12_INFO_QUEUE_FILTER filter{};
+		filter.DenyList.NumIDs = _countof(denyIds);
+		filter.DenyList.pIDList = denyIds;
+		filter.DenyList.NumSeverities = _countof(severities);
+		filter.DenyList.pSeverityList = severities;
+
+		//指定したエラーの表示を抑制する
+		infoQueue->PushStorageFilter(&filter);
+
+		infoQueue->Release();
+	}
+#endif
 }
 
 void DirectXCommon::InitializeCommand() {
@@ -154,13 +185,43 @@ void DirectXCommon::InitializeSwapchain() {
 
 void DirectXCommon::InitializeRenderTargetView() {
 
+	HRESULT result;
+
+	DXGI_SWAP_CHAIN_DESC1 swapChainDesc{};
+
+	result = swapChain->GetDesc1(&swapChainDesc);
+	assert(SUCCEEDED(result));
+
+
 	//デスクリプタヒープの設定
 	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; //レンダーターゲットビュー
+	rtvHeapDesc.NumDescriptors = swapChainDesc.BufferCount; //裏表の２つ
 	//デスクリプタヒープの生成
 	device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap));
 
-	for (int i = 0; i < 2; i++) {
-		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV; //レンダーターゲットビュー
+	rtvHD = device->GetDescriptorHandleIncrementSize(rtvHeapDesc.Type);
+	//int a = 1;
+
+
+	////バックバッファ
+	backBuffers.resize(swapChainDesc.BufferCount);
+
+	//スワップチェーンの全てのバッファについて処理する
+	for (size_t i = 0; i < backBuffers.size(); i++) {
+		//スワップチェーンからバッファを取得
+		swapChain->GetBuffer((UINT)i, IID_PPV_ARGS(&backBuffers[i]));
+		//デスクリプタヒープのハンドルを取得
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
+		//裏か表かでアドレスがずれる
+		rtvHandle.ptr += i * device->GetDescriptorHandleIncrementSize(rtvHeapDesc.Type);
+		//レンダーターゲットビューの設定
+		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
+		//シェーダーの計算結果をSRGBに変換して書き込む
+		rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+		rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+		//レンダーターゲットビューの生成
+		device->CreateRenderTargetView(backBuffers[i].Get(), &rtvDesc, rtvHandle);
 	}
 }
 
@@ -228,18 +289,18 @@ void DirectXCommon::PreDraw() {
 	UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
 
 	//1.リソースバリアで書き込み可能に変更
-	//D3D12_RESOURCE_BARRIER barrierDesc{};
-	//barrierDesc.Transition.pResource = backBuffers[bbIndex].Get();//バックバッファを指定
-	//barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;//表示状態から
-	//barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;//描画状態へ
-	//commandList->ResourceBarrier(1, &barrierDesc);
+	D3D12_RESOURCE_BARRIER barrierDesc{};
+	barrierDesc.Transition.pResource = backBuffers[bbIndex].Get();//バックバッファを指定
+	barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;//表示状態から
+	barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;//描画状態へ
+	commandList->ResourceBarrier(1, &barrierDesc);
 
-	commandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(backBuffers[bbIndex].Get(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
 
 	//2.描画先の変更
 	// レンダーターゲットビューのハンドルを取得
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle =
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvHeap->GetCPUDescriptorHandleForHeapStart(),bbIndex, device->GetDescriptorHandleIncrementSize(rtvHeapDesc.Type));
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvHeap->GetCPUDescriptorHandleForHeapStart(),bbIndex, rtvHD);
 	// 深度ステンシルビュー用デスクリプタヒープのハンドルを取得
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle =
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -257,28 +318,24 @@ void DirectXCommon::PreDraw() {
 	//4.描画コマンドはここから
 
 	// ビューポート設定コマンド
-	//D3D12_VIEWPORT viewport{};
-	//viewport.Width = WinApp::window_width;
-	//viewport.Height = WinApp::window_height;
-	//viewport.TopLeftX = 0;
-	//viewport.TopLeftY = 0;
-	//viewport.MinDepth = 0.0f;
-	//viewport.MaxDepth = 1.0f;
-	//// ビューポート設定コマンドを、コマンドリストに積む
-	//commandList->RSSetViewports(1, &viewport);
-
-	commandList->RSSetViewports(1, &CD3DX12_VIEWPORT(0.0f, 0.0f, WinApp::window_width, WinApp::window_height));
+	D3D12_VIEWPORT viewport{};
+	viewport.Width = WinApp::window_width;
+	viewport.Height = WinApp::window_height;
+	viewport.TopLeftX = 0;
+	viewport.TopLeftY = 0;
+	viewport.MinDepth = 0.0f;
+	viewport.MaxDepth = 1.0f;
+	// ビューポート設定コマンドを、コマンドリストに積む
+	commandList->RSSetViewports(1, &viewport);
 
 	// シザー矩形
-	//D3D12_RECT scissorRect{};
-	//scissorRect.left = 0;//切り抜き座標左
-	//scissorRect.right = scissorRect.left + WinApp::window_width;//切り抜き座標右
-	//scissorRect.top = 0;//切り抜き座標上
-	//scissorRect.bottom = scissorRect.top + WinApp::window_height;//切り抜き座標下
-	//// シザー矩形設定コマンドを、コマンドリストに積む
-	//commandList->RSSetScissorRects(1, &scissorRect);
-
-	commandList->RSSetScissorRects(1, &CD3DX12_RECT(0, 0, WinApp::window_width, WinApp::window_height));
+	D3D12_RECT scissorRect{};
+	scissorRect.left = 0;//切り抜き座標左
+	scissorRect.right = scissorRect.left + WinApp::window_width;//切り抜き座標右
+	scissorRect.top = 0;//切り抜き座標上
+	scissorRect.bottom = scissorRect.top + WinApp::window_height;//切り抜き座標下
+	// シザー矩形設定コマンドを、コマンドリストに積む
+	commandList->RSSetScissorRects(1, &scissorRect);
 
 }
 
@@ -287,6 +344,8 @@ void DirectXCommon::PostDraw() {
 	UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
 
 	// 5.リソースバリアを戻す
+	D3D12_RESOURCE_BARRIER barrierDesc{};
+	barrierDesc.Transition.pResource = backBuffers[bbIndex].Get();//バックバッファを指定
 	barrierDesc.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;//表示状態から
 	barrierDesc.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;//描画状態へ
 	commandList->ResourceBarrier(1, &barrierDesc);
