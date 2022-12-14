@@ -36,6 +36,11 @@ public:
 	//描画後処理
 	void PostDraw();
 
+	//デバイスの取得
+	ID3D12Device* GetDevice() const { return device.Get(); }
+
+	ID3D12GraphicsCommandList* GetCommandList() const { return commandList.Get();}
+
 private:
 	//WindowsAPI
 	WinApp* winApp = nullptr;
