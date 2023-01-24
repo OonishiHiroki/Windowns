@@ -4,6 +4,7 @@
 #include<dxgi1_6.h>
 #include<wrl.h>
 #include <vector>
+#include <chrono>
 
 using namespace Microsoft::WRL;
 
@@ -63,6 +64,16 @@ private:
 	Microsoft::WRL::ComPtr<IDXGIFactory7> dxgiFactory;
 	//バックバッファ
 	std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> backBuffers;
+
+	//メンバ関数
+	//FPS固定初期化
+	void InitializeFixFPS();
+
+	//FPS固定更新
+	void UpdateFixFPS();
+
+	//記録時間
+	std::chrono::steady_clock::time_point reference_;
 
 };
 

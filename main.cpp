@@ -7,6 +7,7 @@
 #include "Input.h"
 #include "WinApp.h"
 #include "DirectXCommon.h"
+#include <thread>
 
 using namespace DirectX;
 
@@ -43,6 +44,11 @@ LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	//標準のメッセージ処理を行う
 	return DefWindowProc(hwnd, msg, wparam, lparam);
 }
+
+HRESULT Present(
+	UINT SyncInterval,
+	UINT Flags
+);
 
 //Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -123,10 +129,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	IDXGIFactory7* dxgiFactory = nullptr;
 	//IDXGISwapChain4* swapChain = nullptr;
 	ID3D12CommandAllocator* commandAllocator = nullptr;
-	//ID3D12GraphicsCommandList* commandList = nullptr;
-	//ID3D12CommandQueue* commandQueue = nullptr;
+	ID3D12GraphicsCommandList* commandList = nullptr;
+	ID3D12CommandQueue* commandQueue = nullptr;
 	//ID3D12DescriptorHeap* rtvHeap = nullptr;
-
 
 	//スケーリング倍率
 	XMFLOAT3 scale;
@@ -854,7 +859,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 
 		//constMapTransform0->mat = matWorld0 * matView * matProjection;
-
 
 		//描画前処理
 		dxCommon->PreDraw();

@@ -2,6 +2,7 @@
 #include<cassert>
 #include<vector>
 #include<d3dx12.h>
+#include <thread>
 
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
@@ -9,6 +10,9 @@
 using namespace Microsoft::WRL;
 
 void DirectXCommon::Initialize(WinApp* winApp) {
+
+	//FPS固定
+	InitializeFixFPS();
 
 	//NULL検出
 	assert(winApp);
@@ -34,6 +38,11 @@ void DirectXCommon::Initialize(WinApp* winApp) {
 	//フェンスの初期化
 	InitializeFence();
 
+}
+
+void DirectXCommon::InitializeFixFPS() {
+	//現在時間を記録する
+	reference_ = std::chrono::steady_clock::now();
 }
 
 void DirectXCommon::InitializeDevice() {
@@ -298,7 +307,7 @@ void DirectXCommon::PreDraw() {
 	//2.描画先の変更
 	// レンダーターゲットビューのハンドルを取得
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle =
-		CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvHeap->GetCPUDescriptorHandleForHeapStart(),bbIndex, rtvHD);
+		CD3DX12_CPU_DESCRIPTOR_HANDLE(rtvHeap->GetCPUDescriptorHandleForHeapStart(), bbIndex, rtvHD);
 	// 深度ステンシルビュー用デスクリプタヒープのハンドルを取得
 	CD3DX12_CPU_DESCRIPTOR_HANDLE dsvHandle =
 		CD3DX12_CPU_DESCRIPTOR_HANDLE(dsvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -337,6 +346,31 @@ void DirectXCommon::PreDraw() {
 
 }
 
+void DirectXCommon::UpdateFixFPS() {
+	// 1/60秒ぴったりの時間
+	const std::chrono::microseconds kMinTime(uint64_t(1000000.0f / 60.0f));
+	// 1/60秒よりわずかに短い時間
+	const std::chrono::microseconds kMinCheckTime(uint64_t(1000000.0f / 65.0f));
+
+	//現在時間を取得する
+	std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+	//前回記録からの経過時間を取得する
+	std::chrono::microseconds elapsed =
+		std::chrono::duration_cast<std::chrono::microseconds>(now - reference_);
+
+	// 1/60(わずかに短い時間)経っていない場合
+	if (elapsed < kMinCheckTime) {
+		// 1/60秒経過するまで微小なスリープを繰り返す
+		while (std::chrono::steady_clock::now() - reference_ < kMinTime) {
+			//1マイクロ秒スリープ
+			std::this_thread::sleep_for(std::chrono::microseconds(1));
+		}
+	}
+	//現在の時間に記録する
+	reference_ = std::chrono::steady_clock::now();
+
+}
+
 void DirectXCommon::PostDraw() {
 	//バックバッファの番号取得(２つなので0番か1番)
 	UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
@@ -368,6 +402,9 @@ void DirectXCommon::PostDraw() {
 		WaitForSingleObject(event, INFINITE);
 		CloseHandle(event);
 	}
+
+	//FPS固定
+	UpdateFixFPS();
 
 	// キューをクリア
 	result = commandAllocator->Reset();
