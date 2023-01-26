@@ -2,6 +2,8 @@
 #include "Input.h"
 #include "WinApp.h"
 #include "DirectXCommon.h"
+#include "Sprite.h"
+#include "SpriteCommon.h"
 
 //Windowsアプリでのエントリーポイント(main関数)
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
@@ -26,6 +28,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	//DirectXの初期化
 	dxCommon = new DirectXCommon();
 	dxCommon->Initialize(winApp);
+
+	SpriteCommon* spriteCommon = nullptr;
+	//スプライト共通部分の初期化
+	spriteCommon = new SpriteCommon;
+	spriteCommon->Initialize(dxCommon);
+
+	Sprite* sprite = new Sprite();
+	sprite->Initialize(dxCommon);
+
+#pragma endregion WindowCreate //基盤システムの終了
 
 	//-------描画初期化処理　ここまで-------//
 
@@ -72,6 +84,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		//-------DirectX毎フレーム処理　ここまで-------//
 	}
 
+#pragma region 最初のシーン
+	
+
 	//WindowAPIの終了処理
 	winApp->Finalize();
 
@@ -79,6 +94,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	delete input;
 	delete winApp;
 	delete dxCommon;
+	delete spriteCommon;
+	delete sprite;
 
 	////ウィンドウクラスを登録解除
 	//UnregisterClass(w.lpszClassName, w.hInstance);
