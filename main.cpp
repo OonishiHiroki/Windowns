@@ -7,10 +7,6 @@
 //定数バッファ用データ構造体(マテリアル)
 struct ConstBufferDataMaterial {
 	XMFLOAT4 color;//色(RGBA)
-};
-
-//定数バッファ用データ構造体(3D変換行列)
-struct ConstBufferDataTransform {
 	XMMATRIX mat; //3D変換行列
 };
 
@@ -54,10 +50,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	spriteCommon_ = sprite->spriteCommonCreate(dxCommon->GetDevice(), 1280, 720);
 	sprite->SpriteCommonLoadTexture(spriteCommon_, 0, L"Resource/micel.jpg", dxCommon->GetDevice());
 
+	title.SetColor(XMFLOAT4(1, 0, 1, 1));
 	title.SpriteCreate(dxCommon->GetDevice(), 1280, 720);
 	title.SetTexNumber(0);
-	title.SetPosition(XMFLOAT3(0, 0, 0));
-	title.SetScale(XMFLOAT2(1280 * 1, 720 * 1));
+	title.SetPosition(XMFLOAT2(640, 360));
+	title.SetAnchorPoint(XMFLOAT2(0.5, 0.5));
+	title.SetScale(XMFLOAT2(1280 * 0.5, 720 * 0.5));
 	title.SpriteTransferVertexBuffer(title);
 	title.SpriteUpdate(title, spriteCommon_);
 
